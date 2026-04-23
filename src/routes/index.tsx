@@ -147,6 +147,10 @@ function LoginPage() {
 
             <button
               type="submit"
+              onClick={(e) => {
+                e.preventDefault();
+                doSignIn(role);
+              }}
               className="group flex h-11 w-full items-center justify-center gap-2 rounded-xl gradient-primary text-sm font-semibold text-primary-foreground shadow-soft transition-all hover:shadow-glow"
             >
               {t("sign_in")}
