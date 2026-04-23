@@ -18,7 +18,8 @@ import {
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-export const navItems = [
+type NavItem = { to: string; icon: typeof LayoutDashboard; key: string; end?: boolean };
+export const navItems: NavItem[] = [
   { to: "/app", icon: LayoutDashboard, key: "dashboard", end: true },
   { to: "/app/students", icon: Users, key: "students" },
   { to: "/app/teachers", icon: GraduationCap, key: "teachers" },
@@ -31,7 +32,7 @@ export const navItems = [
   { to: "/app/notifications", icon: Bell, key: "notifications" },
   { to: "/app/roles", icon: ShieldCheck, key: "roles" },
   { to: "/app/certificates", icon: Award, key: "certificates" },
-] as const;
+];
 
 export function Sidebar() {
   const { t } = useI18n();
