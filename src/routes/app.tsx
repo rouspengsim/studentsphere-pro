@@ -1,20 +1,32 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { Sidebar, MobileNav } from "@/components/app/sidebar";
 import { Topbar } from "@/components/app/topbar";
+import { useAuth } from "@/lib/auth";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/app")({
-  beforeLoad: () => {
-    if (typeof window !== "undefined") {
-      const raw = localStorage.getItem("ums.user");
-      if (!raw) {
-        throw redirect({ to: "/" });
-      }
-    }
-  },
   component: AppLayout,
 });
 
 function AppLayout() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate({ to: "/" });
+    }
+  }, [loading, user, navigate]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       <Sidebar />

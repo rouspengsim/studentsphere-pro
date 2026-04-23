@@ -2,6 +2,9 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import appCss from "../styles.css?url";
 import { I18nProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { Toaster } from "sonner";
 
 function NotFoundComponent() {
   return (
@@ -68,11 +71,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
+  }));
   return (
-    <I18nProvider>
-      <AuthProvider>
-        <Outlet />
-      </AuthProvider>
-    </I18nProvider>
+    <QueryClientProvider client={queryClient}>
+      <I18nProvider>
+        <AuthProvider>
+          <Outlet />
+          <Toaster position="top-right" richColors closeButton />
+        </AuthProvider>
+      </I18nProvider>
+    </QueryClientProvider>
   );
 }
