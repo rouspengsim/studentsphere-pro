@@ -20,15 +20,22 @@ function LoginPage() {
   const navigate = useNavigate();
   const [role, setRole] = useState<Role>("admin");
 
+  const doSignIn = (r: Role) => {
+    signIn(r);
+    // Defer navigation so localStorage write + state commit happen first
+    setTimeout(() => {
+      navigate({ to: "/app" });
+    }, 0);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    signIn(role);
-    navigate({ to: "/app" });
+    e.stopPropagation();
+    doSignIn(role);
   };
 
   const quickIn = (r: Role) => {
-    signIn(r);
-    navigate({ to: "/app" });
+    doSignIn(r);
   };
 
   return (
