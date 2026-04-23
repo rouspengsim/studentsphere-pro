@@ -1,76 +1,53 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
-import { timetable } from "@/lib/mock-data";
-import { Plus, MapPin } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/app/timetable")({
   head: () => ({ meta: [{ title: "Timetable — EduCore" }] }),
   component: TimetablePage,
 });
 
-const hours = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
-const subjectColors: Record<string, string> = {
-  Math: "bg-chart-1/20 border-chart-1 text-chart-1",
-  English: "bg-chart-2/20 border-chart-2 text-chart-2",
-  Khmer: "bg-chart-3/20 border-chart-3 text-chart-3",
-  Physics: "bg-chart-4/20 border-chart-4 text-chart-4",
-  Biology: "bg-chart-5/20 border-chart-5 text-chart-5",
-  Art: "bg-chart-3/20 border-chart-3 text-chart-3",
-  History: "bg-chart-2/20 border-chart-2 text-chart-2",
-  Chemistry: "bg-chart-1/20 border-chart-1 text-chart-1",
-  PE: "bg-chart-5/20 border-chart-5 text-chart-5",
-};
+const days = ["mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 function TimetablePage() {
   const { t } = useI18n();
+  const { data: slots = [], isLoading } = useQuery({
+    queryKey: ["timetable"],
+    queryFn: async () => {
+      const { data } = await supabase.from("timetable_slots").select("id,day,start_time,end_time,room,classes(name,subject_code)").order("start_time");
+      return (data ?? []) as unknown as Array<{ id: string; day: string; start_time: string; end_time: string; room: string | null; classes: { name: string; subject_code: string } | null }>;
+    },
+  });
 
   return (
     <div>
-      <PageHeader
-        title={t("timetable")}
-        subtitle="Week of April 21 — April 25"
-        actions={
-          <button className="inline-flex h-10 items-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow">
-            <Plus className="h-4 w-4" /> Add slot
-          </button>
-        }
-      />
-
+      <PageHeader title={t("timetable")} subtitle="Weekly schedule across all classes" />
       <SectionCard>
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="grid grid-cols-[80px_repeat(5,1fr)] gap-2">
-              <div />
-              {timetable.map((d) => (
-                <div key={d.day} className="rounded-xl bg-muted/50 py-2 text-center">
-                  <p className="font-display text-sm font-bold">{d.day}</p>
-                </div>
-              ))}
-
-              {hours.map((h) => (
-                <div key={h} className="contents">
-                  <div className="flex items-start justify-end pr-2 pt-2 text-xs font-medium text-muted-foreground">{h}</div>
-                  {timetable.map((d) => {
-                    const slot = d.slots.find((s) => s.time === h);
-                    return (
-                      <div key={d.day + h} className="min-h-[64px] rounded-xl border border-dashed border-border/60 p-1.5">
-                        {slot && (
-                          <div className={"h-full rounded-lg border p-2 " + (subjectColors[slot.subject] ?? "bg-muted border-border text-foreground")}>
-                            <p className="text-xs font-bold leading-tight">{slot.subject}</p>
-                            <p className="mt-0.5 flex items-center gap-1 text-[10px] opacity-80">
-                              <MapPin className="h-2.5 w-2.5" /> {slot.room}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+        {isLoading ? (
+          <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+        ) : slots.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">No timetable slots yet.</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+            {days.map((d) => (
+              <div key={d} className="rounded-xl border border-border bg-surface p-3">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">{d}</p>
+                <ul className="space-y-2">
+                  {slots.filter((s) => s.day === d).map((s) => (
+                    <li key={s.id} className="rounded-lg bg-primary/10 p-2 text-xs">
+                      <p className="font-semibold text-primary">{s.classes?.name ?? "—"}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}</p>
+                      {s.room && <p className="flex items-center gap-1 text-[10px] text-muted-foreground"><MapPin className="h-2.5 w-2.5" /> {s.room}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
-        </div>
+        )}
       </SectionCard>
     </div>
   );

@@ -1,106 +1,86 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader, SectionCard, Avatar } from "@/components/app/ui";
+import { PageHeader, SectionCard } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
-import { notifications } from "@/lib/mock-data";
-import { Bell, Send, Megaphone, Plus } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { Bell, Plus, Loader2, X } from "lucide-react";
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/notifications")({
   head: () => ({ meta: [{ title: "Notifications — EduCore" }] }),
   component: NotificationsPage,
 });
 
-const messages = [
-  { from: "Sokha Vong", role: "Admin", text: "Reminder: midterm grades due Friday.", time: "9:12 AM", mine: false },
-  { from: "Me", role: "Teacher", text: "Got it, I'll submit tonight.", time: "9:14 AM", mine: true },
-  { from: "Sokha Vong", role: "Admin", text: "Thanks Dara!", time: "9:15 AM", mine: false },
-];
-
 function NotificationsPage() {
   const { t } = useI18n();
-  const [chat, setChat] = useState(messages);
-  const [text, setText] = useState("");
+  const { primaryRole } = useAuth();
+  const qc = useQueryClient();
+  const [showAdd, setShowAdd] = useState(false);
+  const isAdmin = primaryRole === "admin";
 
-  const send = () => {
-    if (!text.trim()) return;
-    setChat((c) => [...c, { from: "Me", role: "Teacher", text, time: "now", mine: true }]);
-    setText("");
-  };
-
-  const dotColor = (type: string) =>
-    type === "danger" ? "bg-destructive" : type === "warning" ? "bg-warning" : type === "success" ? "bg-success" : "bg-info";
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["notifications-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("notifications").select("*").order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
 
   return (
     <div>
-      <PageHeader
-        title={t("notifications")}
-        subtitle="Announcements, alerts and messaging"
-        actions={
-          <button className="inline-flex h-10 items-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow">
-            <Plus className="h-4 w-4" /> Announcement
-          </button>
-        }
-      />
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <SectionCard title={
-          <span className="flex items-center gap-2"><Bell className="h-4 w-4" /> Alerts</span>
-        }>
-          <ul className="space-y-3">
-            {notifications.map((n) => (
-              <li key={n.id} className="flex items-start gap-3 rounded-xl border border-border/60 p-3">
-                <span className={"mt-1 h-2 w-2 shrink-0 rounded-full " + dotColor(n.type)} />
+      <PageHeader title={t("notifications")} subtitle="Announcements and alerts" actions={isAdmin && (
+        <button onClick={() => setShowAdd(true)} className="inline-flex h-10 items-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow"><Plus className="h-4 w-4" /> Announce</button>
+      )} />
+      <SectionCard>
+        {isLoading ? (
+          <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+        ) : items.length === 0 ? (
+          <div className="py-10 text-center"><Bell className="mx-auto h-8 w-8 text-muted-foreground/40" /><p className="mt-2 text-sm text-muted-foreground">No notifications.</p></div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {items.map((n) => (
+              <li key={n.id} className="flex items-start gap-3 py-3">
+                <span className={"mt-1 h-2 w-2 shrink-0 rounded-full " + (n.kind === "warning" ? "bg-warning" : n.kind === "success" ? "bg-success" : n.kind === "announcement" ? "bg-primary" : "bg-info")} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold leading-tight">{n.title}</p>
-                  <p className="text-xs text-muted-foreground">{n.desc}</p>
-                  <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{n.time}</p>
+                  <p className="text-sm font-semibold">{n.title}</p>
+                  {n.body && <p className="text-xs text-muted-foreground">{n.body}</p>}
                 </div>
+                <span className="text-[10px] text-muted-foreground">{new Date(n.created_at).toLocaleDateString()}</span>
               </li>
             ))}
           </ul>
-        </SectionCard>
+        )}
+      </SectionCard>
 
-        <SectionCard title={<span className="flex items-center gap-2"><Megaphone className="h-4 w-4" /> Announcements</span>}>
-          <ul className="space-y-3">
-            {[
-              { t: "Sports day rescheduled", d: "Now on May 11 at the main field.", date: "Today" },
-              { t: "New library hours", d: "Open until 8 PM weekdays.", date: "Yesterday" },
-              { t: "Parent-teacher meeting", d: "Saturday 9 AM in the auditorium.", date: "2d ago" },
-            ].map((a, i) => (
-              <li key={i} className="rounded-xl bg-primary-soft p-4">
-                <p className="text-sm font-semibold text-primary">{a.t}</p>
-                <p className="mt-0.5 text-xs text-foreground/80">{a.d}</p>
-                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{a.date}</p>
-              </li>
-            ))}
-          </ul>
-        </SectionCard>
+      {showAdd && (
+        <AddNotif onClose={() => { setShowAdd(false); qc.invalidateQueries({ queryKey: ["notifications-list"] }); qc.invalidateQueries({ queryKey: ["topbar-notifications"] }); }} />
+      )}
+    </div>
+  );
+}
 
-        <SectionCard title="Messaging" className="flex flex-col">
-          <div className="flex-1 space-y-3 overflow-y-auto">
-            {chat.map((m, i) => (
-              <div key={i} className={"flex gap-2 " + (m.mine ? "flex-row-reverse" : "")}>
-                {!m.mine && <Avatar name={m.from} className="h-7 w-7 text-[10px]" />}
-                <div className={"max-w-[80%] rounded-2xl px-3 py-2 text-sm " + (m.mine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm")}>
-                  <p>{m.text}</p>
-                  <p className={"mt-0.5 text-[10px] " + (m.mine ? "text-primary-foreground/70" : "text-muted-foreground")}>{m.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex gap-2 border-t border-border pt-3">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Type a message…"
-              className="h-10 flex-1 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-            />
-            <button onClick={send} className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary text-primary-foreground hover:shadow-glow">
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-        </SectionCard>
+function AddNotif({ onClose }: { onClose: () => void }) {
+  const [f, setF] = useState({ title: "", body: "", kind: "announcement" as "info" | "warning" | "success" | "announcement" });
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("notifications").insert({ title: f.title, body: f.body || null, kind: f.kind, target_user_id: null });
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Sent"); onClose(); },
+    onError: (e) => toast.error(e.message),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-card" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between"><h3 className="font-display text-lg font-bold">New announcement</h3><button onClick={onClose} className="rounded-lg p-1 hover:bg-muted"><X className="h-4 w-4" /></button></div>
+        <form onSubmit={(e) => { e.preventDefault(); if (!f.title) return toast.error("Title required"); mut.mutate(); }} className="space-y-3">
+          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Title *</label><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary" /></div>
+          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Message</label><textarea value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} rows={3} className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary" /></div>
+          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kind</label><select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as typeof f.kind })} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"><option value="announcement">Announcement</option><option value="info">Info</option><option value="warning">Warning</option><option value="success">Success</option></select></div>
+          <button type="submit" disabled={mut.isPending} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl gradient-primary text-sm font-semibold text-primary-foreground shadow-soft disabled:opacity-60">{mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}</button>
+        </form>
       </div>
     </div>
   );
